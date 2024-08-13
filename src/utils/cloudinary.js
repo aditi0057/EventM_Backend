@@ -39,4 +39,4 @@ import fs from "fs"
 
     // console.log(uploadResult);
 
-    export {uploadOnCloudinary }
+    export { uploadOnCloudinary }
