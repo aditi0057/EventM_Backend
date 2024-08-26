@@ -1,6 +1,15 @@
-import express from "express";
-import cors from "cors";
-import cookieParser from "cookie-parser";
+import express from 'express';
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
+
+// Import routes
+import userRouter from './routes/user.routes.js';
+import pollRouter from './routes/polls.routes.js';
+import eventRouter from './routes/events.routes.js';
+import calendarRouter from './routes/calender.routes.js';
+import galleryRouter from './routes/gallery.routes.js';
+import dashboardRouter from './routes/userdashboard.routes.js';
+import adminRouter from './routes/admin.routes.js'; 
 
 const app = express();
 
@@ -23,13 +32,14 @@ app.use(cookieParser());
 // Handle preflight OPTIONS requests
 app.options('*', cors(corsOptions));
 
-// Routes import
-import userRouter from './routes/user.routes.js';
-import pollRouter from './routes/polls.routes.js';  // Import the poll routes
-
 // Routes declaration
 app.use("/api/v1/users", userRouter);
-app.use("/api/v1/polls", pollRouter);  // Add poll routes
+app.use("/api/v1/polls", pollRouter);  
+app.use("/api/v1/events", eventRouter); 
+app.use("/api/v1/calender", calendarRouter);  // Add calendar routes
+app.use("/api/v1/gallery", galleryRouter);  // Add gallery routes
+app.use("/api/v1/dashboard", dashboardRouter);  // Add dashboard routes
+app.use("/api/v1/admin", adminRouter);  // Add admin routes
 
 // Catch-all for 404 errors (Route not found)
 app.use((req, res, next) => {
