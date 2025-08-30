@@ -3,7 +3,7 @@
 import mongoose from 'mongoose';
 
 const { Schema } = mongoose;
-
+import mongoosePaginate from 'mongoose-paginate-v2';
 const gallerySchema = new Schema({
   image_url: {
     type: String,
@@ -12,22 +12,27 @@ const gallerySchema = new Schema({
   },
   event_id: {
     type: Schema.Types.ObjectId,
-    ref: 'Event', // Reference to Event model if you have it
+    ref: 'Event',
     required: true
   },
   uploaded_by: {
     type: Schema.Types.ObjectId,
-    ref: 'User', // Reference to User model
+    ref: 'User',
     required: true
   },
   created_at: {
     type: Date,
     default: Date.now
-  }
+  },
+  isApproved: {
+        type: Boolean,
+        default: false
+    }
 }, {
-  timestamps: true // Automatically adds createdAt and updatedAt fields
+  timestamps: true 
 });
 
-const Gallery = mongoose.model('Gallery', gallerySchema);
+gallerySchema.plugin(mongoosePaginate);
 
-export { Gallery };
+export const Gallery = mongoose.model('Gallery', gallerySchema);
+

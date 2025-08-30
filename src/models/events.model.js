@@ -1,8 +1,7 @@
-// const mongoose = require('mongoose');
-// const { Schema } = mongoose;
-import mongoose, { Schema } from "mongoose";
 
-// Define the Event schema
+import mongoose, { Schema } from "mongoose";
+import mongooseAggregatePaginate from "mongoose-aggregate-paginate-v2";
+
 const eventSchema = new Schema({
     title: {
         type: String,
@@ -13,7 +12,8 @@ const eventSchema = new Schema({
         required: true
     },
     host: {
-        type: String, // Host's name
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
         required: true
     },
     date: {
@@ -22,26 +22,20 @@ const eventSchema = new Schema({
     },
     created_by: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User', // Reference to the User model
-        default: null
+        ref: 'User', 
+        required: true
     },
-    created_at: {
-        type: Date,
-        default: Date.now
-    },
-    updated_at: {
-        type: Date,
-        default: Date.now
-    }
+    attendees: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    }],
+
+},
+{
+    timestamps: true
 });
 
-// Middleware to update 'updated_at' on save
-eventSchema.pre('save', function(next) {
-    this.updated_at = Date.now();
-    next();
-});
+eventSchema.plugin(mongooseAggregatePaginate);
+export const Event = mongoose.model('Event', eventSchema);
 
-// Create the Event model
-const Event = mongoose.model('Event', eventSchema);
 
-module.exports = Event;

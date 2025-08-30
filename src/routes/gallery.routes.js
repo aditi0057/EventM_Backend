@@ -1,27 +1,29 @@
-// routes/gallery.routes.js
 import { Router } from 'express';
-import upload from '../middlewares/multer.middleware.js'; // Import the upload middleware
-import { uploadImage, deleteImage, getAllImages, getImagesByEvent, getImagesByUser, updateImage } from '../controllers/gallery.controller.js'; // Import controller functions
-import { verifyJWT } from '../middlewares/auth.middleware.js'; // Import JWT verification middleware
+import { upload } from '../middlewares/multer.middleware.js';
+import { verifyJWT } from '../middlewares/auth.middleware.js';
+import { authorizeRoles } from '../middlewares/role.middleware.js'; 
+import {
+    uploadImage,
+    deleteImage,
+    getAllImages,
+    getImagesByEvent,
+    getImagesByUser,
+    approveImage,
+    rejectImage
+} from '../controllers/gallery.controller.js';
 
 const router = Router();
+router.use(verifyJWT);
 
-// Route to handle image uploads
-router.post('/upload', verifyJWT, upload.single('image'), uploadImage);
+router.route('/')
+    .get(getAllImages)
+    .post(upload.single('image'), uploadImage); 
 
-// Route to delete an image
-router.delete('/delete/:id', verifyJWT, deleteImage);
+router.route('/event/:eventId').get(getImagesByEvent);
+router.route('/user/:userId').get(getImagesByUser);
 
-// Route to update an image
-router.put('/update/:id', verifyJWT, updateImage);
-
-// Route to get all images
-router.get('/', getAllImages);
-
-// Route to get images by event
-router.get('/event/:eventId', getImagesByEvent);
-
-// Route to get images by user
-router.get('/user/:userId', getImagesByUser);
+router.route('/:imageId').delete(deleteImage);
+router.route('/:imageId/approve').patch(authorizeRoles('admin'), approveImage);
+router.route('/:imageId/reject').delete(authorizeRoles('admin'), rejectImage);
 
 export default router;

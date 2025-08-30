@@ -1,45 +1,56 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
-import { Event } from "../models/event.model.js";  // Make sure to adjust the path if needed
+import { Event } from "../models/events.model.js"; // Corrected to singular 'event.model.js'
 import { ApiResponse } from "../utils/ApiResponse.js";
+import mongoose from "mongoose";
 
-// Create a new event (admin only)
+
 const createEvent = asyncHandler(async (req, res) => {
     const { title, description, date, type, host } = req.body;
-    
-    if (!title || !date || !type || !host) {
-        throw new ApiError(400, "All fields are required");
-    }
 
-    // Ensure the event date is valid
-    const eventDate = new Date(date);
-    if (isNaN(eventDate.getTime())) {
-        throw new ApiError(400, "Invalid date");
+    if (!title || !date || !type || !host) {
+        throw new ApiError(400, "Title, date, type, and host are required fields");
     }
 
     const newEvent = await Event.create({
         title,
         description,
-        date: eventDate,
+        date,
         type,
         host,
-        created_by: req.user._id,  // Assuming admin/user ID is available in req.user
+        created_by: req.user._id,
     });
 
     return res.status(201).json(new ApiResponse(201, newEvent, "Event created successfully"));
 });
 
-// Get all events
 const getEvents = asyncHandler(async (req, res) => {
-    const events = await Event.find();
+    const { page = 1, limit = 10 } = req.query;
+    const options = {
+        page: parseInt(page, 10),
+        limit: parseInt(limit, 10),
+        sort: { date: -1 }, 
+    };
+
+    const eventsAggregate = Event.aggregate([]);
+    const events = await Event.aggregatePaginate(eventsAggregate, options);
+
+    if (!events || events.docs.length === 0) {
+        throw new ApiError(404, "No events found");
+    }
+
     return res.status(200).json(new ApiResponse(200, events, "Events fetched successfully"));
 });
 
-// Get a single event by ID
+
 const getEventById = asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    
-    const event = await Event.findById(id);
+    const { eventId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(eventId)) {
+        throw new ApiError(400, "Invalid event ID");
+    }
+
+    const event = await Event.findById(eventId);
     if (!event) {
         throw new ApiError(404, "Event not found");
     }
@@ -47,14 +58,25 @@ const getEventById = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, event, "Event fetched successfully"));
 });
 
-// Update an event by ID (admin only)
+
 const updateEvent = asyncHandler(async (req, res) => {
-    const { id } = req.params;
+    const { eventId } = req.params;
     const { title, description, date, type, host } = req.body;
-    
+
+    if (!mongoose.Types.ObjectId.isValid(eventId)) {
+        throw new ApiError(400, "Invalid event ID");
+    }
+
+    // --- Validation for update ---
+    if (!title && !description && !date && !type && !host) {
+        throw new ApiError(400, "At least one field must be provided to update");
+    }
+
     const updatedEvent = await Event.findByIdAndUpdate(
-        id,
-        { title, description, date: new Date(date), type, host },
+        eventId,
+        {
+            $set: { title, description, date, type, host },
+        },
         { new: true }
     );
 
@@ -65,16 +87,22 @@ const updateEvent = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, updatedEvent, "Event updated successfully"));
 });
 
-// Delete an event by ID (admin only)
+
 const deleteEvent = asyncHandler(async (req, res) => {
-    const { id } = req.params;
+    const { eventId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(eventId)) {
+        throw new ApiError(400, "Invalid event ID");
+    }
     
-    const deletedEvent = await Event.findByIdAndDelete(id);
+    const deletedEvent = await Event.findByIdAndDelete(eventId);
     if (!deletedEvent) {
         throw new ApiError(404, "Event not found");
     }
+    
+    // TODO: Consider deleting associated gallery images and polls in the future.
 
-    return res.status(200).json(new ApiResponse(200, {}, "Event deleted successfully"));
+    return res.status(200).json(new ApiResponse(200, { _id: eventId }, "Event deleted successfully"));
 });
 
 export {

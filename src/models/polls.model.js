@@ -22,12 +22,18 @@ const pollSchema = new Schema({
         type: [String],
         required: true
     },
-    votes: {
-        type: [Number],
-        required: true
-    }
+     isActive: {
+        type: Boolean,
+        default: true
+    },
+     participants: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    }],
+
 }, {
     timestamps: true
 });
 
 export const Poll = mongoose.model("Poll", pollSchema);
+

@@ -1,12 +1,23 @@
-import express from "express";
-import { createPoll, getPolls, voteOnPoll, getPollResults } from "../controllers/polls.controller.js";
+import { Router } from 'express';
+import {
+    createPoll,
+    getPolls,
+    voteOnPoll,
+    getPollResults,
+    closePoll,
+} from '../controllers/polls.controller.js';
+import { verifyJWT } from '../middlewares/auth.middleware.js';
+import { authorizeRoles } from '../middlewares/role.middleware.js';
 
-const router = express.Router();
+const router = Router();
+router.use(verifyJWT);
 
-router.post("/", createPoll);
-router.get("/", getPolls);
-router.post("/:pollId/vote", voteOnPoll);
-router.get("/:pollId/results", getPollResults);
+router.route('/')
+    .get(getPolls) 
+    .post(authorizeRoles('admin'), createPoll); 
 
+router.route('/:pollId/vote').post(voteOnPoll); 
+router.route('/:pollId/results').get(getPollResults); 
+router.route('/:pollId/close').patch(authorizeRoles('admin'), closePoll);
 
 export default router;

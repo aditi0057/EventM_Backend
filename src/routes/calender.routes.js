@@ -1,9 +1,12 @@
+
 import { Router } from 'express';
-import { getCalendarEvents } from '../controllers/calendar.controller.js';
+import { getPersonalCalendarEvents, getCompanyCalendarEvents } from '../controllers/calender.controller.js';
+import { verifyJWT } from '../middlewares/auth.middleware.js';
 
 const router = Router();
 
-// Public route to get calendar events
-router.get('/calender', getCalendarEvents);
+router.route('/personal').get(verifyJWT, getPersonalCalendarEvents);
+
+router.route('/company').get(verifyJWT, getCompanyCalendarEvents);
 
 export default router;

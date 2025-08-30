@@ -1,75 +1,90 @@
-import { User } from '../models/user.model.js';
-import { ApiError } from '../utils/ApiError.js';
+import { asyncHandler } from "../utils/asyncHandler.js";
+import { ApiError } from "../utils/ApiError.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
+import { User } from "../models/user.model.js";
+import { Event } from "../models/events.model.js";
 
-// Get all calendar events for a specific month and year
-export const getCalendarEvents = async (req, res) => {
-  try {
-    const { year, month } = req.query; // Expected format: year and month
 
-    if (!year || !month) {
-      throw new ApiError(400, 'Year and month are required');
+//  'REFERENCE' CALENDAR (ACTUAL DATES)
+
+export const getPersonalCalendarEvents = asyncHandler(async (req, res) => {
+    const { year, month } = req.query;
+    const yearNum = parseInt(year);
+    const monthNum = parseInt(month);
+
+    if (!yearNum || !monthNum || monthNum < 1 || monthNum > 12) {
+        throw new ApiError(400, 'A valid year and month are required');
     }
 
-    // Fetch all users
-    const users = await User.find();
-
-    // Extract all relevant events
-    const events = users.flatMap(user => {
-      const userEvents = [];
-
-      // User's own birthday
-      if (user.dateOfBirth) {
-        const dob = new Date(user.dateOfBirth);
-        if (dob.getFullYear() === parseInt(year) && dob.getMonth() === parseInt(month) - 1) {
-          userEvents.push({
-            date: dob,
-            type: 'Birthday',
-            name: user.fullname
-          });
+  
+    const usersWithEvents = await User.aggregate([
+        {
+            $match: {
+                $or: [
+                    { $expr: { $eq: [{ $month: "$dateOfBirth" }, monthNum] } },
+                    { $expr: { $eq: [{ $month: "$anniversaryDate" }, monthNum] } },
+                    { $expr: { $eq: [{ $month: "$workJoiningDate" }, monthNum] } }
+                ]
+            }
         }
-      }
+    ]);
 
-      // User's anniversary
-      if (user.anniversaryDate) {
-        const anniversary = new Date(user.anniversaryDate);
-        if (anniversary.getFullYear() === parseInt(year) && anniversary.getMonth() === parseInt(month) - 1) {
-          userEvents.push({
-            date: anniversary,
-            type: 'Anniversary',
-            name: user.fullname
-          });
+
+    const personalEvents = usersWithEvents.flatMap(user => {
+        const events = [];
+        if (user.dateOfBirth?.getMonth() + 1 === monthNum) {
+            events.push({
+                title: `${user.fullname}'s Birthday`,
+                date: new Date(yearNum, monthNum - 1, user.dateOfBirth.getDate()),
+                type: 'Birthday',
+                isRecurring: true,
+            });
         }
-      }
 
-      // Children's birthdays
-      user.children.forEach(child => {
-        const childBirthday = new Date(child.birthday);
-        if (childBirthday.getFullYear() === parseInt(year) && childBirthday.getMonth() === parseInt(month) - 1) {
-          userEvents.push({
-            date: childBirthday,
-            type: 'Child\'s Birthday',
-            name: child.name
-          });
+        if (user.anniversaryDate?.getMonth() + 1 === monthNum) {
+            events.push({
+                title: `${user.fullname}'s Anniversary`,
+                date: new Date(yearNum, monthNum - 1, user.anniversaryDate.getDate()),
+                type: 'Anniversary',
+                isRecurring: true,
+            });
         }
-      });
-
-      // Parents' birthdays
-      user.parents.forEach(parent => {
-        const parentBirthday = new Date(parent.birthday);
-        if (parentBirthday.getFullYear() === parseInt(year) && parentBirthday.getMonth() === parseInt(month) - 1) {
-          userEvents.push({
-            date: parentBirthday,
-            type: 'Parent\'s Birthday',
-            name: parent.name
-          });
+        if (user.workJoiningDate?.getMonth() + 1 === monthNum) {
+             events.push({
+                title: `${user.fullname}'s Work Anniversary`,
+                date: new Date(yearNum, monthNum - 1, user.workJoiningDate.getDate()),
+                type: 'Work Anniversary',
+                isRecurring: true,
+            });
         }
-      });
-
-      return userEvents;
+        return events;
     });
 
-    res.status(200).json(events);
-  } catch (error) {
-    res.status(500).json({ message: 'Error fetching calendar events', error });
-  }
-};
+    personalEvents.sort((a, b) => a.date - b.date);
+
+    return res.status(200).json(new ApiResponse(200, personalEvents, "Personal calendar events fetched successfully"));
+});
+
+
+
+// 'CELEBRATION' CALENDAR (PLANNED EVENTS)
+
+export const getCompanyCalendarEvents = asyncHandler(async (req, res) => {
+    const { year, month } = req.query;
+    const yearNum = parseInt(year);
+    const monthNum = parseInt(month);
+
+     if (!yearNum || !monthNum || monthNum < 1 || monthNum > 12) {
+        throw new ApiError(400, 'A valid year and month are required');
+    }
+
+    //date range for the database query
+    const startDate = new Date(yearNum, monthNum - 1, 1);
+    const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59, 999);
+
+    const companyEvents = await Event.find({
+        date: { $gte: startDate, $lte: endDate }
+    }).populate("host", "fullname").sort({ date: 1 });
+
+    return res.status(200).json(new ApiResponse(200, companyEvents, "Company celebration events fetched successfully"));
+});

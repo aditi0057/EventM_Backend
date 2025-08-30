@@ -24,10 +24,7 @@ const userSchema = new Schema({
     trim: true,
     index: true
   },
-  avatar: {
-    type: String, // Cloudinary URL
-    required: true
-  },
+
   password: {
     type: String,
     required: [true, 'Password is required']
@@ -59,16 +56,16 @@ const userSchema = new Schema({
     type: Date,
     required: true
   },
-  role: { // New field for role
+  role: { 
     type: String,
     enum: ['user', 'admin'],
     default: 'user'
   },
-  children: [{ // Array of children's birthdays
+  children: [{ 
     name: { type: String, required: true },
     birthday: { type: Date, required: true }
   }],
-  parents: [{ // Array of parents' birthdays
+  parents: [{ 
     name: { type: String, required: true },
     birthday: { type: Date, required: true }
   }]
@@ -94,7 +91,7 @@ userSchema.methods.generateAccessToken = function () {
       email: this.email,
       username: this.username,
       fullname: this.fullname,
-      role: this.role // Include role in the token payload
+      role: this.role 
     },
     process.env.ACCESS_TOKEN_SECRET,
     {
@@ -110,7 +107,7 @@ userSchema.methods.generateRefreshToken = function () {
       email: this.email,
       username: this.username,
       fullname: this.fullname,
-      role: this.role // Include role in the token payload
+      role: this.role 
     },
     process.env.REFRESH_TOKEN_SECRET,
     {
