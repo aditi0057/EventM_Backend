@@ -29,28 +29,76 @@ export const createPoll = asyncHandler(async (req, res) => {
 
 
 export const getPolls = asyncHandler(async (req, res) => {
-    const { tab } = req.query;
-    const filters = tab ? { tab } : {};
-    const polls = await Poll.find(filters).sort({ createdAt: -1 });
+    const userId = req.user._id;
+    const now = new Date();
+
+    const polls = await Poll.aggregate([
+        { $match: { isActive: true, start_time: { $lte: now }, end_time: { $gte: now } } },
+        { $sort: { createdAt: -1 } },
+        {
+            $lookup: {
+                from: "votes",
+                localField: "_id",
+                foreignField: "poll_id",
+                as: "allVotes"
+            }
+        },
+        {
+            $addFields: {
+                userHasVoted: {
+                    $in: [userId, "$allVotes.user_id"]
+                },
+                results: {
+                    $reduce: {
+                        input: "$options",
+                        initialValue: [],
+                        in: {
+                            $concatArrays: [
+                                "$$value",
+                                [{
+                                    option: "$$this",
+                                    count: {
+                                        $size: {
+                                            $filter: {
+                                                input: "$allVotes",
+                                                as: "vote",
+                                                cond: { $eq: ["$$vote.option_index", { $indexOfArray: ["$options", "$$this"] }] }
+                                            }
+                                        }
+                                    }
+                                }]
+                            ]
+                        }
+                    }
+                },
+                totalVotes: { $size: "$allVotes" }
+            }
+        },
+        {
+            $project: {
+                allVotes: 0
+            }
+        }
+    ]);
 
     return res.status(200).json(new ApiResponse(200, polls, "Polls fetched successfully"));
 });
 
+
 export const voteOnPoll = asyncHandler(async (req, res) => {
     const { pollId } = req.params;
     const { optionIndex } = req.body;
-    const userId = req.user._id; 
+    const userId = req.user._id;
 
     if (optionIndex === undefined || typeof optionIndex !== 'number') {
         throw new ApiError(400, "A valid option index is required to vote");
     }
 
     const poll = await Poll.findById(pollId);
-    if (!poll) {
-        throw new ApiError(404, "Poll not found");
-    }
+    if (!poll) { throw new ApiError(404, "Poll not found"); }
 
-    if (new Date() < new Date(poll.start_time) || new Date() > new Date(poll.end_time)) {
+    const now = new Date();
+    if (now < new Date(poll.start_time) || now > new Date(poll.end_time) || !poll.isActive) {
         throw new ApiError(403, "This poll is not currently active for voting");
     }
 
@@ -64,25 +112,17 @@ export const voteOnPoll = asyncHandler(async (req, res) => {
             user_id: userId,
             option_index: optionIndex,
         });
+        
+        return res.status(200).json(new ApiResponse(200, {}, "Your vote has been recorded successfully"));
+
     } catch (error) {
         if (error.code === 11000) {
             throw new ApiError(409, "You have already voted on this poll");
         }
-        throw error; 
+        throw error;
     }
-
-    return res.status(200).json(new ApiResponse(200, {}, "Your vote has been recorded successfully"));
 });
-export const closePoll = asyncHandler(async (req, res) => {
-    const { pollId } = req.params;
-    const poll = await Poll.findByIdAndUpdate(pollId, { isActive: false }, { new: true });
-    
-    if (!poll) {
-        throw new ApiError(404, "Poll not found");
-    }
 
-    return res.status(200).json(new ApiResponse(200, poll, "Poll has been closed"));
-});
 
 export const getPollResults = asyncHandler(async (req, res) => {
     const { pollId } = req.params;
@@ -102,12 +142,12 @@ export const getPollResults = asyncHandler(async (req, res) => {
         },
         {
             $group: {
-                _id: "$option_index", 
-                count: { $sum: 1 }     
+                _id: "$option_index",
+                count: { $sum: 1 }
             }
         },
         {
-            $sort: { _id: 1 } 
+            $sort: { _id: 1 }
         }
     ]);
 
@@ -125,3 +165,16 @@ export const getPollResults = asyncHandler(async (req, res) => {
 
     return res.status(200).json(new ApiResponse(200, formattedResults, "Poll results fetched successfully"));
 });
+
+
+export const closePoll = asyncHandler(async (req, res) => {
+    const { pollId } = req.params;
+    const poll = await Poll.findByIdAndUpdate(pollId, { isActive: false }, { new: true });
+    
+    if (!poll) {
+        throw new ApiError(404, "Poll not found");
+    }
+
+    return res.status(200).json(new ApiResponse(200, poll, "Poll has been closed"));
+});
+

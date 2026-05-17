@@ -10,7 +10,7 @@ dotenv.config({
 
 const app = express();
 app.use(cors({
-    origin: process.env.CORS_ORIGIN,
+    origin: process.env.CORS_ORIGIN || "http://localhost:3000",
     credentials: true
 }));
 
@@ -32,6 +32,18 @@ app.use("/api/v1/polls", pollRouter);
 app.use("/api/v1/gallery", galleryRouter);
 app.use("/api/v1/calendar", calendarRouter);
 app.use("/api/v1/dashboard", dashboardRouter);
+
+app.use((err, req, res, next) => {
+    const statusCode = err.statusCode || 500;
+
+    return res.status(statusCode).json({
+        success: false,
+        statusCode,
+        message: err.message || "Internal Server Error",
+        errors: err.errors || [],
+        ...(process.env.NODE_ENV === "development" ? { stack: err.stack } : {})
+    });
+});
 
 connectDB()
     .then(() => {

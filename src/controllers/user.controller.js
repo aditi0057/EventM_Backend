@@ -21,7 +21,9 @@ const generateAccessAndRefreshTokens = async (userId) => {
 };
 
 const cookieOptions = {
-    httpOnly: true,// Only send over HTTPS in production
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
 };
 
 const registerUser = asyncHandler(async (req, res) => {

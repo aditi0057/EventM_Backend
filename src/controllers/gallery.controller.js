@@ -36,7 +36,11 @@ const uploadImage = asyncHandler(async (req, res) => {
         uploaded_by: req.user._id,
     });
 
-    return res.status(201).json(new ApiResponse(201, galleryImage, "Image uploaded successfully"));
+    const populatedImage = await Gallery.findById(galleryImage._id)
+        .populate("event_id", "title date")
+        .populate("uploaded_by", "fullname username avatar");
+
+    return res.status(201).json(new ApiResponse(201, populatedImage, "Image uploaded successfully"));
 });
 
 
@@ -72,12 +76,13 @@ const getAllImages = asyncHandler(async (req, res) => {
         limit: parseInt(limit, 10),
         sort: { createdAt: -1 },
         populate: [
-            { path: "event_id", select: "title date" }, // Corrected 'name' to 'title'
-            { path: "uploaded_by", select: "username avatar" }
+            { path: "event_id", select: "title date" },
+            { path: "uploaded_by", select: "fullname username avatar" }
         ]
     };
 
-    const images = await Gallery.paginate({}, options);
+    const filter = req.user.role === 'admin' ? {} : { isApproved: true };
+    const images = await Gallery.paginate(filter, options);
 
     return res.status(200).json(new ApiResponse(200, images, "Images fetched successfully"));
 });
@@ -89,8 +94,12 @@ const getImagesByEvent = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Invalid Event ID format");
     }
 
-    const images = await Gallery.find({ event_id: eventId })
-        .populate("uploaded_by", "username avatar")
+    const filter = req.user.role === 'admin'
+        ? { event_id: eventId }
+        : { event_id: eventId, isApproved: true };
+
+    const images = await Gallery.find(filter)
+        .populate("uploaded_by", "fullname username avatar")
         .sort({ createdAt: -1 });
 
     return res.status(200).json(new ApiResponse(200, images, "Event images fetched successfully"));
@@ -102,8 +111,12 @@ const getImagesByUser = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Invalid User ID format");
     }
 
-    const images = await Gallery.find({ uploaded_by: userId })
-        .populate("event_id", "title date") // Corrected 'name' to 'title'
+    const filter = req.user.role === 'admin' || req.user._id.toString() === userId
+        ? { uploaded_by: userId }
+        : { uploaded_by: userId, isApproved: true };
+
+    const images = await Gallery.find(filter)
+        .populate("event_id", "title date")
         .sort({ createdAt: -1 });
 
     return res.status(200).json(new ApiResponse(200, images, "User images fetched successfully"));

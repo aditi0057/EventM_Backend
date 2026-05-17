@@ -7,8 +7,11 @@ const eventSchema = new Schema({
         type: String,
         required: true
     },
+    description: {
+         type: String 
+    },
     type: {
-        type: String, // 'Birthday', 'Anniversary', etc.
+        type: String, 
         required: true
     },
     host: {
@@ -16,9 +19,18 @@ const eventSchema = new Schema({
         ref: 'User',
         required: true
     },
+    hostName: {
+        type: String,
+        required: true,
+        trim: true
+    },
     date: {
         type: Date,
         required: true
+    },
+    imageUrl: {
+        type: String,
+        required: false 
     },
     created_by: {
         type: mongoose.Schema.Types.ObjectId,
