@@ -13,7 +13,7 @@ const gallerySchema = new Schema({
   event_id: {
     type: Schema.Types.ObjectId,
     ref: 'Event',
-    required: true
+    required: false
   },
   uploaded_by: {
     type: Schema.Types.ObjectId,
@@ -27,7 +27,16 @@ const gallerySchema = new Schema({
   isApproved: {
         type: Boolean,
         default: false
-    }
+    },
+  caption: {
+    type: String,
+    default: "",
+    maxlength: 120
+  },
+  likes: [{
+    type: Schema.Types.ObjectId,
+    ref: 'User'
+  }]
 }, {
   timestamps: true 
 });

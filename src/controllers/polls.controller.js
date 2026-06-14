@@ -6,7 +6,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import mongoose from "mongoose";
 
 export const createPoll = asyncHandler(async (req, res) => {
-    const { tab, question, start_time, end_time, options } = req.body;
+    const { tab, question, start_time, end_time, options, allowMultipleVotes } = req.body;
 
     if (!tab || !question || !start_time || !end_time || !options || !Array.isArray(options) || options.length < 2) {
         throw new ApiError(400, "All fields are required, and there must be at least two options");
@@ -22,6 +22,8 @@ export const createPoll = asyncHandler(async (req, res) => {
         start_time,
         end_time,
         options,
+        creator: req.user._id,
+        allowMultipleVotes: Boolean(allowMultipleVotes),
     });
 
     return res.status(201).json(new ApiResponse(201, poll, "Poll created successfully"));
@@ -33,7 +35,7 @@ export const getPolls = asyncHandler(async (req, res) => {
     const now = new Date();
 
     const polls = await Poll.aggregate([
-        { $match: { isActive: true, start_time: { $lte: now }, end_time: { $gte: now } } },
+        { $match: { start_time: { $lte: now } } },
         { $sort: { createdAt: -1 } },
         {
             $lookup: {
@@ -75,6 +77,32 @@ export const getPolls = asyncHandler(async (req, res) => {
             }
         },
         {
+            $addFields: {
+                isActive: {
+                    $and: [
+                        "$isActive",
+                        { $gt: ["$end_time", now] }
+                    ]
+                },
+                userVoteIndex: {
+                    $let: {
+                        vars: {
+                            ownVote: {
+                                $first: {
+                                    $filter: {
+                                        input: "$allVotes",
+                                        as: "vote",
+                                        cond: { $eq: ["$$vote.user_id", userId] }
+                                    }
+                                }
+                            }
+                        },
+                        in: "$$ownVote.option_index"
+                    }
+                }
+            }
+        },
+        {
             $project: {
                 allVotes: 0
             }
@@ -107,20 +135,74 @@ export const voteOnPoll = asyncHandler(async (req, res) => {
     }
 
     try {
-        await Vote.create({
+        await Vote.findOneAndUpdate({
+            poll_id: pollId,
+            user_id: userId,
+        }, {
             poll_id: pollId,
             user_id: userId,
             option_index: optionIndex,
-        });
+        }, { upsert: true, new: true, setDefaultsOnInsert: true });
         
         return res.status(200).json(new ApiResponse(200, {}, "Your vote has been recorded successfully"));
 
     } catch (error) {
-        if (error.code === 11000) {
-            throw new ApiError(409, "You have already voted on this poll");
-        }
         throw error;
     }
+});
+
+export const updatePoll = asyncHandler(async (req, res) => {
+    const { pollId } = req.params;
+    const poll = await Poll.findById(pollId);
+
+    if (!poll) {
+        throw new ApiError(404, "Poll not found");
+    }
+
+    if (req.user.role !== "admin" && poll.creator?.toString() !== req.user._id.toString()) {
+        throw new ApiError(403, "Access denied");
+    }
+
+    const question = req.body.question?.trim();
+    const tab = req.body.tab || req.body.category;
+    const options = Array.isArray(req.body.options)
+        ? req.body.options.map((option) => String(option).trim()).filter(Boolean)
+        : [];
+    const endTime = req.body.end_time || req.body.deadline;
+    const allowMultipleVotes = req.body.allowMultipleVotes ?? req.body.allowMultiple;
+
+    if (!question) {
+        throw new ApiError(400, "Question is required");
+    }
+    if (!["Venue", "Schedule", "Food", "Others"].includes(tab)) {
+        throw new ApiError(400, "Invalid poll category");
+    }
+    if (options.length < 2) {
+        throw new ApiError(400, "At least two options are required");
+    }
+
+    const parsedEndTime = endTime ? new Date(endTime) : poll.end_time;
+    if (Number.isNaN(parsedEndTime.getTime())) {
+        throw new ApiError(400, "Invalid voting deadline");
+    }
+
+    poll.question = question;
+    poll.tab = tab;
+    poll.options = options;
+    poll.end_time = parsedEndTime;
+    poll.allowMultipleVotes = Boolean(allowMultipleVotes);
+    await poll.save();
+
+    return res.status(200).json(new ApiResponse(200, poll, "Poll updated successfully"));
+});
+
+export const deletePoll = asyncHandler(async (req, res) => {
+    const poll = await Poll.findById(req.params.pollId);
+    if (!poll) throw new ApiError(404, "Poll not found");
+    if (req.user.role !== "admin" && poll.creator?.toString() !== req.user._id.toString()) throw new ApiError(403, "Access denied");
+    await Vote.deleteMany({ poll_id: poll._id });
+    await Poll.findByIdAndDelete(poll._id);
+    return res.status(200).json(new ApiResponse(200, {}, "Poll deleted"));
 });
 
 

@@ -36,9 +36,16 @@ const userSchema = new Schema({
   refreshToken: {
     type: String
   },
+  emailVerified: {
+    type: Boolean,
+    default: false
+  },
+  verificationToken: String,
+  passwordResetToken: String,
+  passwordResetExpires: Date,
   mobileNumber: {
     type: String,
-    required: true,
+    required: false,
     trim: true
   },
   dateOfBirth: {
@@ -47,8 +54,8 @@ const userSchema = new Schema({
   },
   maritalStatus: {
     type: String,
-    enum: ['Single', 'Married'],
-    required: true
+    enum: ['Prefer not to say', 'Single', 'Married', 'Other'],
+    default: 'Prefer not to say'
   },
   anniversaryDate: {
     type: Date,
@@ -72,7 +79,20 @@ const userSchema = new Schema({
   parents: [{ 
     name: { type: String, required: true },
     birthday: { type: Date, required: true }
-  }]
+  }],
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+  notificationSettings: {
+    eventReminders: { type: Boolean, default: true },
+    birthdayAlerts: { type: Boolean, default: true },
+    pollNotifications: { type: Boolean, default: true },
+    galleryApprovals: { type: Boolean, default: true },
+    weeklyDigest: { type: Boolean, default: true },
+    showBirthday: { type: Boolean, default: true },
+    showWorkAnniversary: { type: Boolean, default: true }
+  }
 }, {
   timestamps: true
 });

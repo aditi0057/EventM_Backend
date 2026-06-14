@@ -5,6 +5,8 @@ import {
     voteOnPoll,
     getPollResults,
     closePoll,
+    deletePoll,
+    updatePoll,
 } from '../controllers/polls.controller.js';
 import { verifyJWT } from '../middlewares/auth.middleware.js';
 import { authorizeRoles } from '../middlewares/role.middleware.js';
@@ -14,10 +16,11 @@ router.use(verifyJWT);
 
 router.route('/')
     .get(getPolls) 
-    .post(authorizeRoles('admin'), createPoll); 
+    .post(createPoll); 
 
-router.route('/:pollId/vote').post(voteOnPoll); 
+router.route('/:pollId/vote').post(voteOnPoll).patch(voteOnPoll); 
 router.route('/:pollId/results').get(getPollResults); 
-router.route('/:pollId/close').patch(authorizeRoles('admin'), closePoll);
+router.route('/:pollId/close').patch(closePoll);
+router.route('/:pollId').patch(updatePoll).delete(deletePoll);
 
 export default router;

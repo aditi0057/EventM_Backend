@@ -3,7 +3,7 @@ import mongoose, { Schema } from "mongoose";
 const pollSchema = new Schema({
     tab: {
         type: String,
-        enum: ['Venue', 'Schedule', 'Others'],
+        enum: ['Venue', 'Schedule', 'Food', 'Others'],
         required: true
     },
     question: {
@@ -30,6 +30,14 @@ const pollSchema = new Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     }],
+     creator: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+     },
+     allowMultipleVotes: {
+        type: Boolean,
+        default: false
+     },
 
 }, {
     timestamps: true

@@ -4,6 +4,7 @@ import { User } from "../models/user.model.js";
 import { uploadOnCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 
 const generateAccessAndRefreshTokens = async (userId) => {
     try {
@@ -30,8 +31,8 @@ const registerUser = asyncHandler(async (req, res) => {
     const { fullname, email, username, password, mobileNumber, dateOfBirth, maritalStatus, anniversaryDate, workJoiningDate } = req.body;
 
     // --- Validation ---
-    if ([fullname, email, username, password, mobileNumber, dateOfBirth, maritalStatus].some((field) => !field || field.trim() === "")) {
-        throw new ApiError(400, "All required fields must be provided");
+    if ([fullname, email, username, password].some((field) => !field || field.trim() === "")) {
+        throw new ApiError(400, "Full name, email, username, and password are required");
     }
 
     const existedUser = await User.findOne({ $or: [{ username }, { email }] });
@@ -41,12 +42,8 @@ const registerUser = asyncHandler(async (req, res) => {
 
 
     const avatarLocalPath = req.file?.path;
-    if (!avatarLocalPath) {
-        throw new ApiError(400, "Avatar image is required");
-    }
-
-    const avatar = await uploadOnCloudinary(avatarLocalPath);
-    if (!avatar) {
+    const avatar = avatarLocalPath ? await uploadOnCloudinary(avatarLocalPath) : null;
+    if (avatarLocalPath && !avatar) {
         throw new ApiError(500, "Failed to upload avatar, please try again");
     }
 
@@ -56,12 +53,13 @@ const registerUser = asyncHandler(async (req, res) => {
         email,
         username: username.toLowerCase(),
         password,
-        avatar: avatar.url,
+        avatar: avatar?.url || "",
         mobileNumber,
         dateOfBirth,
-        maritalStatus,
+        maritalStatus: maritalStatus || "Prefer not to say",
         anniversaryDate: maritalStatus === 'Married' ? anniversaryDate : null,
         workJoiningDate,
+        verificationToken: crypto.randomBytes(24).toString("hex"),
     });
 
     const createdUser = await User.findById(user._id).select("-password -refreshToken");
@@ -87,6 +85,9 @@ const loginUser = asyncHandler(async (req, res) => {
     const isPasswordValid = await user.isPasswordCorrect(password);
     if (!isPasswordValid) {
         throw new ApiError(401, "Invalid credentials");
+    }
+    if (user.emailVerified === false && process.env.REQUIRE_EMAIL_VERIFICATION === "true") {
+        throw new ApiError(403, "Please verify your email before logging in");
     }
 
     const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(user._id);
@@ -160,19 +161,84 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 });
 
 const updateAccountDetails = asyncHandler(async (req, res) => {
-    const { fullname, email, mobileNumber } = req.body;
-    if (!fullname && !email && !mobileNumber) {
+    const { fullname, email, mobileNumber, username, dateOfBirth, workJoiningDate, maritalStatus } = req.body;
+    if (!fullname && !email && !mobileNumber && !username && !dateOfBirth && !workJoiningDate && !maritalStatus) {
         throw new ApiError(400, "At least one field to update must be provided");
     }
 
     const user = await User.findByIdAndUpdate(
         req.user._id,
-        { $set: { fullname, email, mobileNumber } },
+        { $set: { fullname, email, mobileNumber, username, dateOfBirth, workJoiningDate, maritalStatus } },
         { new: true }
     ).select("-password -refreshToken");
 
     return res.status(200).json(new ApiResponse(200, user, "Account details updated successfully"));
 });
+
+const verifyEmail = asyncHandler(async (req, res) => {
+    const { token } = req.body;
+    const user = await User.findOneAndUpdate({ verificationToken: token }, { emailVerified: true, $unset: { verificationToken: 1 } }, { new: true }).select("-password -refreshToken");
+    if (!user) throw new ApiError(400, "Invalid verification token");
+    return res.status(200).json(new ApiResponse(200, user, "Email verified"));
+});
+
+const forgotPassword = asyncHandler(async (req, res) => {
+    const { email } = req.body;
+    const token = crypto.randomBytes(24).toString("hex");
+    await User.findOneAndUpdate({ email }, { passwordResetToken: token, passwordResetExpires: new Date(Date.now() + 60 * 60 * 1000) });
+    return res.status(200).json(new ApiResponse(200, { token: process.env.NODE_ENV === "development" ? token : undefined }, "If the account exists, a reset link has been sent"));
+});
+
+const resetPassword = asyncHandler(async (req, res) => {
+    const { token, password } = req.body;
+    const user = await User.findOne({ passwordResetToken: token, passwordResetExpires: { $gt: new Date() } });
+    if (!user) throw new ApiError(400, "Invalid or expired reset token");
+    user.password = password;
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    await user.save();
+    return res.status(200).json(new ApiResponse(200, {}, "Password reset successfully"));
+});
+
+const getUsers = asyncHandler(async (req, res) => {
+    const { page = 1, limit = 20, q = "" } = req.query;
+    const filter = q ? { $or: [{ fullname: new RegExp(q, "i") }, { email: new RegExp(q, "i") }] } : {};
+    const users = await User.find(filter).select("-password -refreshToken").skip((page - 1) * limit).limit(Number(limit)).sort({ createdAt: -1 });
+    const total = await User.countDocuments(filter);
+    return res.status(200).json(new ApiResponse(200, { docs: users, total }, "Users fetched"));
+});
+
+const getUserById = asyncHandler(async (req, res) => {
+    const user = await User.findById(req.params.id).select("-password -refreshToken");
+    if (!user) throw new ApiError(404, "User not found");
+    return res.status(200).json(new ApiResponse(200, user, "User fetched"));
+});
+
+const updateUserById = asyncHandler(async (req, res) => {
+    if (req.user.role !== "admin" && req.user._id.toString() !== req.params.id) throw new ApiError(403, "Access denied");
+    const user = await User.findByIdAndUpdate(req.params.id, { $set: req.body }, { new: true }).select("-password -refreshToken");
+    return res.status(200).json(new ApiResponse(200, user, "User updated"));
+});
+
+const deleteUserById = asyncHandler(async (req, res) => {
+    await User.findByIdAndUpdate(req.params.id, { isActive: false });
+    return res.status(200).json(new ApiResponse(200, {}, "User deactivated"));
+});
+
+const upcomingByDateField = async (field, days) => {
+    const users = await User.find({ [field]: { $exists: true, $ne: null } }).select("fullname username email avatar dateOfBirth workJoiningDate");
+    const now = new Date();
+    const end = new Date(Date.now() + Number(days || 14) * 86400000);
+    return users.filter((user) => {
+        const source = new Date(user[field]);
+        const next = new Date(now.getFullYear(), source.getMonth(), source.getDate());
+        if (next < now) next.setFullYear(now.getFullYear() + 1);
+        return next <= end;
+    });
+};
+
+const getBirthdays = asyncHandler(async (req, res) => res.status(200).json(new ApiResponse(200, await upcomingByDateField("dateOfBirth", req.query.days), "Birthdays fetched")));
+const getAnniversaries = asyncHandler(async (req, res) => res.status(200).json(new ApiResponse(200, await upcomingByDateField("workJoiningDate", req.query.days), "Anniversaries fetched")));
 
 
 const updateUserAvatar = asyncHandler(async (req, res) => {
@@ -211,4 +277,13 @@ export {
     getCurrentUser,
     updateAccountDetails,
     updateUserAvatar,
+    verifyEmail,
+    forgotPassword,
+    resetPassword,
+    getUsers,
+    getUserById,
+    updateUserById,
+    deleteUserById,
+    getBirthdays,
+    getAnniversaries,
 };

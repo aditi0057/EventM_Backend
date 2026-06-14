@@ -7,21 +7,18 @@ import { uploadOnCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js
 import mongoose from "mongoose";
 
 const uploadImage = asyncHandler(async (req, res) => {
-    const { event_id } = req.body;
+    const { event_id, caption = "" } = req.body;
     const imageLocalPath = req.file?.path;
 
     if (!imageLocalPath) {
         throw new ApiError(400, "Image file is required");
     }
-    if (!event_id) {
-        throw new ApiError(400, "Event ID is required");
-    }
-    if (!mongoose.Types.ObjectId.isValid(event_id)) {
+    if (event_id && !mongoose.Types.ObjectId.isValid(event_id)) {
         throw new ApiError(400, "Invalid Event ID format");
     }
 
-    const event = await Event.findById(event_id);
-    if (!event) {
+    const event = event_id ? await Event.findById(event_id) : null;
+    if (event_id && !event) {
         throw new ApiError(404, "Event not found");
     }
 
@@ -32,8 +29,10 @@ const uploadImage = asyncHandler(async (req, res) => {
 
     const galleryImage = await Gallery.create({
         image_url: image.url,
-        event_id,
+        event_id: event_id || undefined,
         uploaded_by: req.user._id,
+        caption,
+        isApproved: false,
     });
 
     const populatedImage = await Gallery.findById(galleryImage._id)
@@ -70,7 +69,7 @@ const deleteImage = asyncHandler(async (req, res) => {
 });
 
 const getAllImages = asyncHandler(async (req, res) => {
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 10, status = "approved" } = req.query;
     const options = {
         page: parseInt(page, 10),
         limit: parseInt(limit, 10),
@@ -81,7 +80,9 @@ const getAllImages = asyncHandler(async (req, res) => {
         ]
     };
 
-    const filter = req.user.role === 'admin' ? {} : { isApproved: true };
+    const filter = status === "pending" && req.user.role === "admin"
+        ? { isApproved: false }
+        : { isApproved: true };
     const images = await Gallery.paginate(filter, options);
 
     return res.status(200).json(new ApiResponse(200, images, "Images fetched successfully"));
@@ -125,7 +126,9 @@ const getImagesByUser = asyncHandler(async (req, res) => {
 
 const approveImage = asyncHandler(async (req, res) => {
     const { imageId } = req.params;
-    const galleryItem = await Gallery.findByIdAndUpdate(imageId, { isApproved: true }, { new: true });
+    const galleryItem = await Gallery.findByIdAndUpdate(imageId, { isApproved: true }, { new: true })
+        .populate("event_id", "title date")
+        .populate("uploaded_by", "fullname username avatar");
 
     if (!galleryItem) {
         throw new ApiError(404, "Gallery item not found");
