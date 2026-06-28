@@ -4,9 +4,10 @@
   "description": "Backend for Event Management Portal for Durr Group",
   "type": "module",
   "main": "app.js",
-  "scripts": {
-    "dev": "nodemon -r dotenv/config --experimental-json-modules src/app.js"
-  },
+"scripts": {
+  "dev": "nodemon -r dotenv/config --experimental-json-modules src/app.js",
+  "start": "node -r dotenv/config --experimental-json-modules src/app.js"
+},
   "keywords": [
     "javascript",
     "Backend",
