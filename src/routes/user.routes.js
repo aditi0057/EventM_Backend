@@ -17,6 +17,8 @@ import {
     deleteUserById,
     getBirthdays,
     getAnniversaries,
+    getUserSettings,
+    updateUserSettings,
 } from '../controllers/user.controller.js';
 import { upload } from '../middlewares/multer.middleware.js';
 import { verifyJWT } from '../middlewares/auth.middleware.js';
@@ -34,6 +36,7 @@ router.route('/logout').post(verifyJWT, logOutUser);
 router.route('/current-user').get(verifyJWT, getCurrentUser);
 router.route('/birthdays').get(verifyJWT, getBirthdays);
 router.route('/anniversaries').get(verifyJWT, getAnniversaries);
+router.route('/settings').get(verifyJWT, getUserSettings).post(verifyJWT, updateUserSettings).patch(verifyJWT, updateUserSettings);
 router.route('/change-password').post(verifyJWT, changeCurrentPassword);
 router.route('/update-account').patch(verifyJWT, updateAccountDetails);
 router.route('/avatar').patch(verifyJWT, upload.single('avatar'), updateUserAvatar);

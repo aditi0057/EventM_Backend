@@ -4,6 +4,13 @@ import mongoose from 'mongoose';
 
 const { Schema } = mongoose;
 import mongoosePaginate from 'mongoose-paginate-v2';
+const galleryAlbumSchema = new Schema({
+  name: { type: String, required: true, trim: true },
+  description: { type: String, default: "", trim: true },
+  eventId: { type: Schema.Types.ObjectId, ref: "Event", required: false },
+  createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
+}, { timestamps: true });
+
 const gallerySchema = new Schema({
   image_url: {
     type: String,
@@ -28,6 +35,17 @@ const gallerySchema = new Schema({
         type: Boolean,
         default: false
     },
+  status: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending',
+    index: true
+  },
+  albumId: {
+    type: Schema.Types.ObjectId,
+    ref: 'GalleryAlbum',
+    required: false
+  },
   caption: {
     type: String,
     default: "",
@@ -44,4 +62,5 @@ const gallerySchema = new Schema({
 gallerySchema.plugin(mongoosePaginate);
 
 export const Gallery = mongoose.model('Gallery', gallerySchema);
+export const GalleryAlbum = mongoose.model('GalleryAlbum', galleryAlbumSchema);
 

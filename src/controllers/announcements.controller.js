@@ -19,7 +19,7 @@ export const createAnnouncement = asyncHandler(async (req, res) => {
   if (!body || body.trim().length < 10) throw new ApiError(400, "Announcement must be at least 10 characters");
   const announcement = await Announcement.create({ body, sendTo, priority, scheduledFor, createdBy: req.user._id });
   const users = await User.find().select("_id");
-  await Notification.insertMany(users.map((user) => ({ userId: user._id, type: "announcement", message: `Announcement: ${body.slice(0, 80)}`, link: "/announcements" })));
+  await Notification.insertMany(users.map((user) => ({ userId: user._id, type: "announcement", title: "Announcement", message: `Announcement: ${body.slice(0, 80)}`, link: null, isRead: false, read: false })));
   return res.status(201).json(new ApiResponse(201, announcement, "Announcement created"));
 });
 

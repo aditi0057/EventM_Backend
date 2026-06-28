@@ -141,6 +141,20 @@ const getCurrentUser = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, req.user, "User profile fetched successfully"));
 });
 
+const getUserSettings = asyncHandler(async (req, res) => {
+    const user = await User.findById(req.user._id).select("notificationSettings");
+    return res.status(200).json(new ApiResponse(200, user?.notificationSettings || {}, "Settings fetched"));
+});
+
+const updateUserSettings = asyncHandler(async (req, res) => {
+    const user = await User.findByIdAndUpdate(
+        req.user._id,
+        { $set: { notificationSettings: req.body } },
+        { new: true }
+    ).select("notificationSettings");
+    return res.status(200).json(new ApiResponse(200, user?.notificationSettings || {}, "Settings saved"));
+});
+
 
 const changeCurrentPassword = asyncHandler(async (req, res) => {
     const { oldPassword, newPassword } = req.body;
@@ -286,4 +300,6 @@ export {
     deleteUserById,
     getBirthdays,
     getAnniversaries,
+    getUserSettings,
+    updateUserSettings,
 };

@@ -7,6 +7,7 @@ import {
     deleteEvent,
     rsvpEvent,
     getRsvps,
+    getCelebratingSoon,
 } from '../controllers/events.controller.js';
 import { verifyJWT } from '../middlewares/auth.middleware.js';
 
@@ -15,6 +16,8 @@ const router = Router();
 router.route('/')
     .get(verifyJWT, getEvents)
     .post(verifyJWT, createEvent); 
+
+router.route('/celebrating-soon').get(verifyJWT, getCelebratingSoon);
 
 router.route('/:eventId')
     .get(verifyJWT, getEventById) 

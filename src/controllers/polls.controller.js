@@ -4,6 +4,12 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import mongoose from "mongoose";
+import { notifyAllUsers } from "../utils/notifications.js";
+
+const activePollFilter = (now = new Date()) => ({
+    isActive: true,
+    end_time: { $gt: now },
+});
 
 export const createPoll = asyncHandler(async (req, res) => {
     const { tab, question, start_time, end_time, options, allowMultipleVotes } = req.body;
@@ -24,6 +30,12 @@ export const createPoll = asyncHandler(async (req, res) => {
         options,
         creator: req.user._id,
         allowMultipleVotes: Boolean(allowMultipleVotes),
+    });
+    await notifyAllUsers({
+        type: "poll",
+        title: "New poll",
+        message: `New poll: ${poll.question}`,
+        link: "/Poll",
     });
 
     return res.status(201).json(new ApiResponse(201, poll, "Poll created successfully"));
@@ -259,4 +271,6 @@ export const closePoll = asyncHandler(async (req, res) => {
 
     return res.status(200).json(new ApiResponse(200, poll, "Poll has been closed"));
 });
+
+export { activePollFilter };
 
