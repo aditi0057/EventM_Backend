@@ -295,19 +295,7 @@ Gallery and avatar uploads use `multer`. Gallery image uploads accept either `im
 
 Cloudinary credentials are required for production image storage.
 
-## Frontend Integration
 
-In the frontend `.env.local`, set:
-
-```env
-NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
-```
-
-In the backend `.env`, set:
-
-```env
-CORS_ORIGIN=http://localhost:3000
-```
 
 Then run both apps:
 
